@@ -12,6 +12,8 @@
 # ------------------------------------------------
 
 
+from zhipuai import ZhipuAI
+client = ZhipuAI(api_key="ffd58eab07e346498551df72d4279e24.rVlS68O8gU5I0e57")
 
 
 def analyze_budget(income, fixed_expenses, saving_goal): #定义一个函数，用来分析预算
@@ -116,6 +118,26 @@ def main(): #定义主函数
         print("--------------------")
         
         
+
+
+
+        fact_text = "\n".join(results) # 将下列列表合成一段话，作为发给AI的事实
+
+        response = client.chat.completions.create(
+            model="glm-4-flash",
+            messages=[
+            {
+                "role": "system",
+                "content": "你是一个幽默且专业的财务管家。我会给你一份经由python精准计算出的财务报告，请你基于这些事实，用鼓励的语气给用户写一段 100 字以内的总结建议。"
+            },
+            {"role": "user", "content": fact_text}
+
+            
+            ]
+        )
+    
+        print("---AI深度洞察---")
+        print(response.choices[0].message.content)
 
 
 if __name__ == "__main__": #如果是主程序运行
