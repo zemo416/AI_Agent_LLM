@@ -11,7 +11,6 @@
 # Usage: Run the script and follow the prompts to input your financial data.
 # ------------------------------------------------
 
-
 from zhipuai import ZhipuAI
 client = ZhipuAI(api_key="ffd58eab07e346498551df72d4279e24.rVlS68O8gU5I0e57")
 
@@ -51,8 +50,6 @@ def analyze_budget(income, fixed_expenses, saving_goal): #定义一个函数，�
     return messages #返回信息，结束这一函数分析程序
     
 
-
-
 def read_float(prompt): #不停问用户输入，直到他输入一个“合法的数字”，或者输入 q 退出
 
 
@@ -78,7 +75,6 @@ def read_float(prompt): #不停问用户输入，直到他输入一个“合法�
 
             print("Please enter a valid number or type q to quit.") #提示用户输入有效数据
         
-
 
 
 def main(): #定义主函数
@@ -116,8 +112,6 @@ def main(): #定义主函数
         for line in results: #循环打印分析结果
             print(line) #打印分析结果
         print("--------------------")
-        
-        
 
 
 
