@@ -1,0 +1,5 @@
+Feature: Integrated ZhipuAI (GLM-4-Flash) to transform raw calculation data into natural language financial advice.
+
+Architecture: Implemented a decoupled design where Python handles deterministic math logic and LLM handles semantic reasoning.
+
+Optimization: Parsed nested API response objects to extract structured content for end-user display.
