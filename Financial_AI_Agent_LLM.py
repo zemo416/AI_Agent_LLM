@@ -33,7 +33,7 @@ def analyze_budget(income, fixed_expenses, saving_goal): #定义一个函数，�
 
 
     if saving_goal > remaining: #如果储蓄目标大于月剩余金额
-        messages.append(" your saving goal is too high") #添加输出屏幕的信息
+        messages.append("your saving goal is too high") #添加输出屏幕的信息
         messages.append("Action: lower the saving goal or cut expenses")
 
 
@@ -77,12 +77,12 @@ def read_float(prompt): #不停问用户输入，直到他输入一个“合法�
         
 
 
-def main(): #定义主函数
+def main(): #定义主函数，这个是所有程序大脑，不可更改
     print("Personal Budget Assistant v2") #打印程序名称
     print("Type q at any prompt to quit.") #打印退出提示 
 
     while True: #无限循环，直到用户选择退出
-        choice = input(" Press Enter to calculate, or type q to quit:").strip().lower() #读取用户输入，并去掉前后空格，转换为小写
+        choice = input("Press Enter to calculate, or type q to quit:").strip().lower() #读取用户输入，并去掉前后空格，转换为小写
 
         if choice == "q": #如果用户输入q
 
