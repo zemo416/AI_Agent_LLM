@@ -11,6 +11,19 @@
 # Usage: Run the script and follow the prompts to input your financial data.
 # ------------------------------------------------
 
+
+
+#main()
+# ├─ read_float()   # 输入校验
+# ├─ analyze_budget()  ←【这里是“大脑”】【该升级的地方】
+# │    ├─ 计算 remaining
+# │    ├─ 判断条件
+# │    ├─ messages.append(...)
+# │    └─ return messages
+# └─ 把 messages：
+#      ├─ print 给用户
+#      └─ join 成 fact_text → 交给 LLM 总结
+
 from zhipuai import ZhipuAI
 client = ZhipuAI(api_key="ffd58eab07e346498551df72d4279e24.rVlS68O8gU5I0e57")
 
@@ -18,7 +31,19 @@ client = ZhipuAI(api_key="ffd58eab07e346498551df72d4279e24.rVlS68O8gU5I0e57")
 def analyze_budget(income, fixed_expenses, saving_goal): #定义一个函数，用来分析预算
     remaining = income - fixed_expenses #定义计算公式，计算月剩余金额
     messages = [] #把信息全放在这里
-    
+
+
+    # -------- Risk Level Assessment --------
+    if remaining <= 0:
+        risk = "High"
+    elif remaining < income * 0.1:
+        risk = "Medium"
+    else:
+        risk = "Low"
+
+    messages.append(f"Risk Level: {risk}")
+
+
     if remaining <= 0: #如果月剩余金额小于等于0
         messages.append(" your expenses exceed your income") #添加输出屏幕的信息
         messages.append(" Action: reduce expenses or increase income.")
@@ -86,7 +111,7 @@ def main(): #定义主函数，这个是所有程序大脑，不可更改
 
         if choice == "q": #如果用户输入q
 
-            print("Bye") #打印退出信息
+            print("很高兴为您服务，下次见") #打印退出信息
             break #结束主函数程序
 
         income = read_float("Monthly income:") #调用读取函数，读取用户输入的月收入
@@ -122,7 +147,11 @@ def main(): #定义主函数，这个是所有程序大脑，不可更改
             messages=[
             {
                 "role": "system",
-                "content": "你是一个幽默且专业的财务管家。我会给你一份经由python精准计算出的财务报告，请你基于这些事实，用鼓励的语气给用户写一段 100 字以内的总结建议。"
+                "content": "You are a financial audit agent. "
+                        "Based only on the computed financial facts, output a corrective action plan. "
+                                "Each action must include: what to change, how much to change, and the expected impact. "
+                                    "No greetings, no summaries, no disclaimers. "
+                                        "Use numbered bullet points only."
             },
             {"role": "user", "content": fact_text}
 
@@ -130,9 +159,9 @@ def main(): #定义主函数，这个是所有程序大脑，不可更改
             ]
         )
     
-        print("---AI深度洞察---")
+        print("---分析结果如下---")
         print(response.choices[0].message.content)
 
 
 if __name__ == "__main__": #如果是主程序运行
-    main() 
+    main()
