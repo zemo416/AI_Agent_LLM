@@ -106,6 +106,50 @@ class PostgresDatabase:
             )
         """)
 
+        # User profiles table for comprehensive user data
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT UNIQUE NOT NULL,
+
+                -- Demographics
+                age INTEGER,
+                occupation TEXT,
+                industry TEXT,
+
+                -- Health
+                health_status TEXT,
+                medical_history TEXT,
+                insurance_type TEXT,
+
+                -- Work
+                work_hours_per_week INTEGER,
+                work_intensity TEXT,
+                job_type TEXT,
+
+                -- Family
+                marital_status TEXT,
+                number_of_dependents INTEGER DEFAULT 0,
+                family_environment TEXT,
+
+                -- Financial Context
+                employment_type TEXT,
+                income_stability TEXT,
+
+                -- Metadata
+                profile_completed BOOLEAN DEFAULT FALSE,
+                completion_percentage INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create index on user_id for fast profile lookups
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id
+            ON user_profiles(user_id)
+        """)
+
         self.conn.commit()
 
     def insert_financial_record(self, result: Dict, user_id: str) -> int:
@@ -285,6 +329,118 @@ class PostgresDatabase:
 
         except Exception as e:
             print(f"Error deleting all records: {e}")
+            self.conn.rollback()
+            return False
+
+    def upsert_user_profile(self, user_id: str, profile_data: Dict) -> bool:
+        """Insert or update user profile with completion tracking"""
+        try:
+            # Calculate completion percentage
+            total_fields = 14
+            filled_fields = sum(1 for v in profile_data.values() if v is not None and v != '')
+            completion_pct = int((filled_fields / total_fields) * 100)
+            profile_completed = completion_pct >= 80
+
+            # Check if profile exists
+            self.cursor.execute("SELECT id FROM user_profiles WHERE user_id = %s", (user_id,))
+            exists = self.cursor.fetchone()
+
+            if exists:
+                # Update existing profile
+                self.cursor.execute("""
+                    UPDATE user_profiles SET
+                        age = %s, occupation = %s, industry = %s,
+                        health_status = %s, medical_history = %s, insurance_type = %s,
+                        work_hours_per_week = %s, work_intensity = %s, job_type = %s,
+                        marital_status = %s, number_of_dependents = %s, family_environment = %s,
+                        employment_type = %s, income_stability = %s,
+                        profile_completed = %s, completion_percentage = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = %s
+                """, (
+                    profile_data.get('age'),
+                    profile_data.get('occupation'),
+                    profile_data.get('industry'),
+                    profile_data.get('health_status'),
+                    profile_data.get('medical_history'),
+                    profile_data.get('insurance_type'),
+                    profile_data.get('work_hours_per_week'),
+                    profile_data.get('work_intensity'),
+                    profile_data.get('job_type'),
+                    profile_data.get('marital_status'),
+                    profile_data.get('number_of_dependents'),
+                    profile_data.get('family_environment'),
+                    profile_data.get('employment_type'),
+                    profile_data.get('income_stability'),
+                    profile_completed,
+                    completion_pct,
+                    user_id
+                ))
+            else:
+                # Insert new profile
+                self.cursor.execute("""
+                    INSERT INTO user_profiles (
+                        user_id, age, occupation, industry,
+                        health_status, medical_history, insurance_type,
+                        work_hours_per_week, work_intensity, job_type,
+                        marital_status, number_of_dependents, family_environment,
+                        employment_type, income_stability,
+                        profile_completed, completion_percentage
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    user_id,
+                    profile_data.get('age'),
+                    profile_data.get('occupation'),
+                    profile_data.get('industry'),
+                    profile_data.get('health_status'),
+                    profile_data.get('medical_history'),
+                    profile_data.get('insurance_type'),
+                    profile_data.get('work_hours_per_week'),
+                    profile_data.get('work_intensity'),
+                    profile_data.get('job_type'),
+                    profile_data.get('marital_status'),
+                    profile_data.get('number_of_dependents'),
+                    profile_data.get('family_environment'),
+                    profile_data.get('employment_type'),
+                    profile_data.get('income_stability'),
+                    profile_completed,
+                    completion_pct
+                ))
+
+            self.conn.commit()
+            return True
+
+        except Exception as e:
+            print(f"Error upserting profile: {e}")
+            self.conn.rollback()
+            return False
+
+    def get_user_profile(self, user_id: str) -> Optional[Dict]:
+        """Retrieve user profile by user_id"""
+        try:
+            self.cursor.execute("""
+                SELECT * FROM user_profiles WHERE user_id = %s
+            """, (user_id,))
+
+            row = self.cursor.fetchone()
+            if row:
+                columns = [desc[0] for desc in self.cursor.description]
+                return dict(zip(columns, row))
+            return None
+
+        except Exception as e:
+            print(f"Error retrieving profile: {e}")
+            return None
+
+    def delete_user_profile(self, user_id: str) -> bool:
+        """Delete user profile"""
+        try:
+            self.cursor.execute("DELETE FROM user_profiles WHERE user_id = %s", (user_id,))
+            self.conn.commit()
+            return True
+
+        except Exception as e:
+            print(f"Error deleting profile: {e}")
             self.conn.rollback()
             return False
 

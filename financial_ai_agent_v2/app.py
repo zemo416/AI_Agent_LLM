@@ -188,12 +188,13 @@ def analyze_budget(income, fixed_expenses, saving_goal):
 
     return result
 
-def get_ai_analysis(result):
-    """Get AI-powered financial analysis"""
+def get_ai_analysis(result, user_profile=None):
+    """Get AI-powered financial analysis with personalized context"""
     if not client:
         return "AI analysis is not available. Please set ZHIPU_API_KEY."
 
-    fact_text = "\n".join([
+    # Build financial facts
+    fact_text = "=== FINANCIAL SNAPSHOT ===\n" + "\n".join([
         f"Income: ${result['income']:.2f}",
         f"Fixed Expenses: ${result['fixed']:.2f}",
         f"Saving Goal: ${result['goal']:.2f}",
@@ -201,6 +202,52 @@ def get_ai_analysis(result):
         f"Risk Level: {result['risk']}",
         f"Savings Ratio: {result['ratio']}%"
     ])
+
+    # Build personalized profile context
+    if user_profile:
+        profile_context = "\n\n=== USER PROFILE CONTEXT ===\n"
+
+        # Demographics
+        if user_profile.get('age'):
+            profile_context += f"Age: {user_profile['age']} years old\n"
+        if user_profile.get('occupation'):
+            profile_context += f"Occupation: {user_profile['occupation']}\n"
+        if user_profile.get('industry'):
+            profile_context += f"Industry: {user_profile['industry']}\n"
+
+        # Health
+        if user_profile.get('health_status'):
+            profile_context += f"Health Status: {user_profile['health_status']}\n"
+        if user_profile.get('insurance_type'):
+            profile_context += f"Insurance: {user_profile['insurance_type']}\n"
+        if user_profile.get('medical_history'):
+            profile_context += f"Medical Considerations: {user_profile['medical_history']}\n"
+
+        # Work
+        if user_profile.get('job_type'):
+            profile_context += f"Employment Type: {user_profile['job_type']}\n"
+        if user_profile.get('work_hours_per_week'):
+            profile_context += f"Work Hours: {user_profile['work_hours_per_week']} hours/week\n"
+        if user_profile.get('work_intensity'):
+            profile_context += f"Work Intensity: {user_profile['work_intensity']}\n"
+        if user_profile.get('employment_type'):
+            profile_context += f"Job Security: {user_profile['employment_type']}\n"
+
+        # Family
+        if user_profile.get('marital_status'):
+            profile_context += f"Marital Status: {user_profile['marital_status']}\n"
+        if user_profile.get('number_of_dependents') and user_profile.get('number_of_dependents') > 0:
+            profile_context += f"Dependents: {user_profile['number_of_dependents']} people\n"
+        if user_profile.get('family_environment'):
+            profile_context += f"Living Situation: {user_profile['family_environment']}\n"
+
+        # Financial context
+        if user_profile.get('income_stability'):
+            profile_context += f"Income Stability: {user_profile['income_stability']}\n"
+
+        fact_text += profile_context
+    else:
+        fact_text += "\n\n[Note: User profile not completed. Recommendations are generic. Complete profile in Settings for personalized advice.]"
 
     # Try multiple models in order of preference
     models_to_try = ["glm-4", "glm-4-plus", "glm-3-turbo", "chatglm_turbo"]
@@ -212,18 +259,31 @@ def get_ai_analysis(result):
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a professional financial advisor with expertise in personal finance management. "
-                                   "Provide comprehensive, actionable advice based on the financial data provided. "
-                                   "Your response should include:\n"
-                                   "1. Overall financial health assessment (2-3 sentences)\n"
-                                   "2. Specific recommendations (5-7 actionable bullet points)\n"
-                                   "3. Potential risks to watch out for\n"
-                                   "4. Long-term financial planning tips\n"
-                                   "Be thorough but clear. Use bullet points and emojis for better readability."
+                        "content": """You are a professional financial advisor with expertise in personal finance management.
+Provide comprehensive, actionable advice based on the financial data AND user profile provided.
+
+IMPORTANT: When user profile data is available, tailor your advice to their specific situation:
+- Consider their age and life stage (retirement planning for older, aggressive savings for younger)
+- Factor in occupation and industry risks (job security, income volatility)
+- Account for health status and insurance (emergency fund sizing, healthcare costs)
+- Consider work intensity and hours (burnout risk, side income potential)
+- Factor in family situation (dependents increase emergency fund needs)
+- Adjust for income stability (more reserves for variable income)
+
+Your response should include:
+1. **Overall Financial Health Assessment** (2-3 sentences considering their unique situation)
+2. **Personalized Recommendations** (7-10 actionable bullet points tailored to their profile)
+3. **Risk Factors Specific to Their Situation** (based on occupation, health, family, etc.)
+4. **Life Stage Appropriate Planning** (retirement, education, healthcare based on age and dependents)
+5. **Action Items** (3-5 immediate steps prioritized for their situation)
+
+Be thorough but clear. Use bullet points and emojis for readability.
+If profile data is missing, provide general advice but note which specific recommendations
+could be improved with more profile information."""
                     },
                     {"role": "user", "content": fact_text}
                 ],
-                max_tokens=1500,
+                max_tokens=2000,
                 temperature=0.7
             )
             return response.choices[0].message.content
@@ -404,12 +464,21 @@ if page == "Dashboard":
                 {' '.join(result['messages'])}
             </div>""", unsafe_allow_html=True)
 
-        # AI Analysis
+        # AI Analysis with personalized profile data
         if client:
             with st.expander("🤖 AI-Powered Recommendations", expanded=True):
                 with st.spinner("Getting AI insights..."):
-                    ai_advice = get_ai_analysis(result)
+                    # Get user profile for personalized analysis
+                    user_profile = db.get_user_profile(user_id)
+                    ai_advice = get_ai_analysis(result, user_profile)
                     st.markdown(ai_advice)
+
+                    # Save AI analysis to database for history tracking
+                    if st.session_state.get('use_database'):
+                        records = db.get_all_records(user_id)
+                        if records:
+                            record_id = records[0]['id']
+                            db.insert_ai_analysis(record_id, ai_advice)
 
 elif page == "Budget Analysis":
     st.title("📊 Detailed Budget Analysis")
@@ -548,8 +617,17 @@ elif page == "Budget Analysis":
         with tab3:
             if client:
                 with st.spinner("Generating AI insights..."):
-                    ai_advice = get_ai_analysis(result)
+                    # Get user profile for personalized analysis
+                    user_profile = db.get_user_profile(user_id)
+                    ai_advice = get_ai_analysis(result, user_profile)
                     st.markdown(ai_advice)
+
+                    # Save AI analysis to database for history tracking
+                    if st.session_state.get('use_database'):
+                        records = db.get_all_records(user_id)
+                        if records:
+                            record_id = records[0]['id']
+                            db.insert_ai_analysis(record_id, ai_advice)
             else:
                 st.warning("AI features are not available. Please configure ZHIPU_API_KEY.")
 
@@ -715,6 +793,312 @@ elif page == "Settings":
     else:
         st.warning("🔓 Guest Mode - Your data is temporary")
         st.info("Create an account to save your data permanently")
+
+    st.divider()
+
+    # Change Password Section (only for authenticated users)
+    if st.session_state.get('authenticated'):
+        st.markdown("#### 🔑 Change Password")
+
+        with st.form("change_password_form"):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                old_password = st.text_input("Current Password", type="password")
+                new_password = st.text_input("New Password (min 6 characters)", type="password")
+
+            with col2:
+                confirm_password = st.text_input("Confirm New Password", type="password")
+
+            submit_password_change = st.form_submit_button("Change Password")
+
+            if submit_password_change:
+                if not old_password or not new_password or not confirm_password:
+                    st.error("Please fill in all password fields")
+                elif new_password != confirm_password:
+                    st.error("New passwords do not match")
+                elif len(new_password) < 6:
+                    st.error("New password must be at least 6 characters")
+                else:
+                    from auth_system import AuthSystem
+                    auth = AuthSystem(db)
+                    username = st.session_state.user_data.get('username')
+                    success, message = auth.change_password(username, old_password, new_password)
+
+                    if success:
+                        st.success(message)
+                    else:
+                        st.error(message)
+
+        st.divider()
+
+    # User Profile Section
+    st.markdown("#### 👤 User Profile")
+
+    # Get existing profile
+    user_profile = db.get_user_profile(user_id)
+
+    if user_profile:
+        completion_pct = user_profile.get('completion_percentage', 0)
+        if completion_pct >= 80:
+            st.success(f"Profile {completion_pct}% complete - Great job!")
+        elif completion_pct >= 50:
+            st.warning(f"Profile {completion_pct}% complete - Add more details for better AI insights")
+        else:
+            st.info(f"Profile {completion_pct}% complete - Complete your profile for personalized advice")
+    else:
+        st.info("Profile incomplete - Complete your profile for personalized AI advice")
+
+    # Profile Form with Tabs for organization
+    profile_tab1, profile_tab2, profile_tab3, profile_tab4 = st.tabs([
+        "📊 Demographics", "🏥 Health", "💼 Work", "👨‍👩‍👧 Family & Financial"
+    ])
+
+    with st.form("user_profile_form"):
+
+        # Demographics Tab
+        with profile_tab1:
+            st.markdown("##### Personal Information")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                age = st.number_input(
+                    "Age",
+                    min_value=18,
+                    max_value=100,
+                    value=int(user_profile.get('age')) if user_profile and user_profile.get('age') else 18,
+                    help="Your current age"
+                )
+
+                occupation = st.text_input(
+                    "Occupation",
+                    value=user_profile.get('occupation', '') if user_profile else '',
+                    placeholder="e.g., Software Engineer, Teacher, Manager",
+                    help="Your current job title"
+                )
+
+            with col2:
+                industry_options = ['', 'Technology', 'Healthcare', 'Finance', 'Education', 'Retail',
+                                  'Manufacturing', 'Government', 'Nonprofit', 'Other']
+                current_industry = user_profile.get('industry', '') if user_profile else ''
+                industry_index = industry_options.index(current_industry) if current_industry in industry_options else 0
+
+                industry = st.selectbox(
+                    "Industry",
+                    options=industry_options,
+                    index=industry_index,
+                    help="The industry you work in"
+                )
+
+        # Health Tab
+        with profile_tab2:
+            st.markdown("##### Health Information")
+            st.caption("This helps AI provide advice considering your health-related expenses")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                health_options = ['', 'Excellent', 'Good', 'Fair', 'Poor']
+                current_health = user_profile.get('health_status', '') if user_profile else ''
+                health_index = health_options.index(current_health) if current_health in health_options else 0
+
+                health_status = st.selectbox(
+                    "Overall Health Status",
+                    options=health_options,
+                    index=health_index,
+                    help="Your general health condition"
+                )
+
+                insurance_options = ['', 'None', 'Basic', 'Comprehensive', 'Premium']
+                current_insurance = user_profile.get('insurance_type', '') if user_profile else ''
+                insurance_index = insurance_options.index(current_insurance) if current_insurance in insurance_options else 0
+
+                insurance_type = st.selectbox(
+                    "Health Insurance Coverage",
+                    options=insurance_options,
+                    index=insurance_index,
+                    help="Your current health insurance level"
+                )
+
+            with col2:
+                medical_history = st.text_area(
+                    "Medical Conditions (Optional)",
+                    value=user_profile.get('medical_history', '') if user_profile else '',
+                    placeholder="e.g., Diabetes, Hypertension, None",
+                    help="Any chronic conditions affecting finances",
+                    height=100
+                )
+
+        # Work Tab
+        with profile_tab3:
+            st.markdown("##### Work & Career")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                job_type_options = ['', 'Full-time', 'Part-time', 'Contract', 'Freelance', 'Self-employed']
+                current_job_type = user_profile.get('job_type', '') if user_profile else ''
+                job_type_index = job_type_options.index(current_job_type) if current_job_type in job_type_options else 0
+
+                job_type = st.selectbox(
+                    "Employment Type",
+                    options=job_type_options,
+                    index=job_type_index,
+                    help="Your employment arrangement"
+                )
+
+                work_hours_per_week = st.number_input(
+                    "Work Hours per Week",
+                    min_value=0,
+                    max_value=80,
+                    value=int(user_profile.get('work_hours_per_week')) if user_profile and user_profile.get('work_hours_per_week') else 0,
+                    help="Average weekly work hours"
+                )
+
+            with col2:
+                intensity_options = ['', 'Low', 'Moderate', 'High', 'Very High']
+                current_intensity = user_profile.get('work_intensity', '') if user_profile else ''
+                intensity_index = intensity_options.index(current_intensity) if current_intensity in intensity_options else 0
+
+                work_intensity = st.selectbox(
+                    "Work Intensity",
+                    options=intensity_options,
+                    index=intensity_index,
+                    help="Physical and mental demands of your job"
+                )
+
+                employment_options = ['', 'Permanent', 'Contract', 'Probation', 'At-will']
+                current_employment = user_profile.get('employment_type', '') if user_profile else ''
+                employment_index = employment_options.index(current_employment) if current_employment in employment_options else 0
+
+                employment_type = st.selectbox(
+                    "Job Security",
+                    options=employment_options,
+                    index=employment_index,
+                    help="Your employment contract type"
+                )
+
+        # Family & Financial Tab
+        with profile_tab4:
+            st.markdown("##### Family & Financial Context")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                marital_options = ['', 'Single', 'Married', 'Divorced', 'Widowed', 'Partner']
+                current_marital = user_profile.get('marital_status', '') if user_profile else ''
+                marital_index = marital_options.index(current_marital) if current_marital in marital_options else 0
+
+                marital_status = st.selectbox(
+                    "Marital Status",
+                    options=marital_options,
+                    index=marital_index,
+                    help="Your relationship status"
+                )
+
+                number_of_dependents = st.number_input(
+                    "Number of Dependents",
+                    min_value=0,
+                    max_value=10,
+                    value=int(user_profile.get('number_of_dependents', 0)) if user_profile else 0,
+                    help="Children, elderly parents, or others you support financially"
+                )
+
+            with col2:
+                family_env_options = ['', 'Alone', 'With Partner', 'With Family', 'Shared Housing', 'Other']
+                current_family_env = user_profile.get('family_environment', '') if user_profile else ''
+                family_env_index = family_env_options.index(current_family_env) if current_family_env in family_env_options else 0
+
+                family_environment = st.selectbox(
+                    "Living Situation",
+                    options=family_env_options,
+                    index=family_env_index,
+                    help="Your current living arrangement"
+                )
+
+                stability_options = ['', 'Very Stable', 'Stable', 'Variable', 'Unstable']
+                current_stability = user_profile.get('income_stability', '') if user_profile else ''
+                stability_index = stability_options.index(current_stability) if current_stability in stability_options else 0
+
+                income_stability = st.selectbox(
+                    "Income Stability",
+                    options=stability_options,
+                    index=stability_index,
+                    help="How predictable is your monthly income?"
+                )
+
+        # Submit button
+        st.divider()
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col2:
+            save_profile = st.form_submit_button("Save Profile", use_container_width=True)
+
+    # Handle form submission
+    if save_profile:
+        profile_data = {
+            'age': age if age >= 18 else None,
+            'occupation': occupation or None,
+            'industry': industry or None,
+            'health_status': health_status or None,
+            'medical_history': medical_history or None,
+            'insurance_type': insurance_type or None,
+            'work_hours_per_week': work_hours_per_week if work_hours_per_week > 0 else None,
+            'work_intensity': work_intensity or None,
+            'job_type': job_type or None,
+            'marital_status': marital_status or None,
+            'number_of_dependents': number_of_dependents,
+            'family_environment': family_environment or None,
+            'employment_type': employment_type or None,
+            'income_stability': income_stability or None
+        }
+
+        if db.upsert_user_profile(user_id, profile_data):
+            st.success("Profile saved successfully! Your AI analysis will now be personalized.")
+            st.rerun()
+        else:
+            st.error("Failed to save profile. Please try again.")
+
+    st.divider()
+
+    # AI Analysis History Viewer
+    st.markdown("#### 🤖 AI Analysis History")
+    st.caption("View past AI recommendations based on your financial records")
+
+    # Get all records for this user
+    all_records = db.get_all_records(user_id)
+
+    if all_records and len(all_records) > 0:
+        # Show button to expand/collapse history
+        if st.button("📜 View Past AI Recommendations", use_container_width=True):
+            st.markdown("### Recent AI Insights")
+
+            # Show last 5 analyses
+            for i, record in enumerate(all_records[:5]):
+                record_id = record['id']
+
+                # Get AI analysis for this record
+                full_record = db.get_record_by_id(record_id)
+
+                if full_record and full_record.get('ai_analysis'):
+                    with st.expander(
+                        f"📅 {record.get('timestamp', 'N/A')[:10]} - "
+                        f"Income: ${record.get('income', 0):,.0f} - "
+                        f"Risk: {record.get('risk', 'N/A')}"
+                    ):
+                        st.markdown(full_record['ai_analysis'])
+                        st.caption(f"Savings Ratio: {record.get('ratio', 0):.1f}% | "
+                                 f"Remaining: ${record.get('remaining', 0):,.0f}")
+                else:
+                    with st.expander(
+                        f"📅 {record.get('timestamp', 'N/A')[:10]} - No AI analysis saved"
+                    ):
+                        st.info("AI analysis was not saved for this record. "
+                               "New analyses are automatically saved for future reference.")
+
+            if len(all_records) > 5:
+                st.info(f"Showing 5 most recent analyses out of {len(all_records)} total records.")
+    else:
+        st.info("No analysis history yet. Start analyzing your budget to build a history of AI recommendations!")
 
     st.divider()
 

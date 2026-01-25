@@ -179,6 +179,50 @@ class AuthSystem:
             print(f"Error getting user: {e}")
             return None
 
+    def change_password(self, username: str, old_password: str, new_password: str) -> tuple[bool, str]:
+        """
+        Change user password
+        Returns: (success: bool, message: str)
+        """
+        try:
+            # Validate new password
+            if len(new_password) < 6:
+                return False, "New password must be at least 6 characters"
+
+            # Get user and verify old password
+            placeholder = '%s' if self.db_type == 'postgres' else '?'
+            self.cursor.execute(f"""
+                SELECT id, password_hash FROM users WHERE username = {placeholder}
+            """, (username,))
+
+            user = self.cursor.fetchone()
+
+            if not user:
+                return False, "User not found"
+
+            # Convert to dict if needed
+            if self.db_type == 'sqlite':
+                user = dict(user)
+
+            # Verify old password
+            if not self.verify_password(old_password, user['password_hash']):
+                return False, "Current password is incorrect"
+
+            # Hash new password
+            new_password_hash = self.hash_password(new_password)
+
+            # Update password
+            self.cursor.execute(f"""
+                UPDATE users SET password_hash = {placeholder} WHERE id = {placeholder}
+            """, (new_password_hash, user['id']))
+
+            self.conn.commit()
+            return True, "Password changed successfully!"
+
+        except Exception as e:
+            print(f"Password change error: {e}")
+            return False, f"Failed to change password: {str(e)}"
+
     def close(self):
         """Close database connection"""
         if self.conn:
