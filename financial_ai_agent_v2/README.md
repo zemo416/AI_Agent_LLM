@@ -293,9 +293,8 @@ This project was created as a portfolio demonstration. Suggestions and feedback 
 
 **Zemou Huang**
 - Portfolio Project
-- Contact: [Your Email]
-- LinkedIn: [Your LinkedIn]
-- GitHub: [Your GitHub]
+- Contact: zh333@nau.edu
+- GitHub: zemo416
 
 ## 📄 License
 
