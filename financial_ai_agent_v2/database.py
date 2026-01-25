@@ -38,6 +38,7 @@ class FinancialDatabase:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS financial_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 income REAL NOT NULL,
                 fixed_expenses REAL NOT NULL,
@@ -47,6 +48,12 @@ class FinancialDatabase:
                 savings_ratio REAL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
+        """)
+
+        # Create index on user_id for faster queries
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_id
+            ON financial_records(user_id)
         """)
 
         # Expense breakdown table
@@ -84,18 +91,19 @@ class FinancialDatabase:
 
         self.conn.commit()
 
-    def insert_financial_record(self, result: Dict) -> int:
+    def insert_financial_record(self, result: Dict, user_id: str) -> int:
         """
-        Insert a new financial record
+        Insert a new financial record for a specific user
         Returns: record_id
         """
         try:
-            # Insert main record
+            # Insert main record with user_id
             self.cursor.execute("""
                 INSERT INTO financial_records
-                (timestamp, income, fixed_expenses, saving_goal, remaining, risk_level, savings_ratio)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (user_id, timestamp, income, fixed_expenses, saving_goal, remaining, risk_level, savings_ratio)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
+                user_id,
                 result.get('timestamp', datetime.now().isoformat()),
                 result['income'],
                 result['fixed'],
@@ -151,13 +159,21 @@ class FinancialDatabase:
             print(f"Error inserting AI analysis: {e}")
             return False
 
-    def get_all_records(self) -> List[Dict]:
-        """Retrieve all financial records"""
+    def get_all_records(self, user_id: str = None) -> List[Dict]:
+        """Retrieve all financial records for a specific user"""
         try:
-            self.cursor.execute("""
-                SELECT * FROM financial_records
-                ORDER BY created_at DESC
-            """)
+            if user_id:
+                self.cursor.execute("""
+                    SELECT * FROM financial_records
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                """, (user_id,))
+            else:
+                # For backwards compatibility, return all records if no user_id
+                self.cursor.execute("""
+                    SELECT * FROM financial_records
+                    ORDER BY created_at DESC
+                """)
 
             rows = self.cursor.fetchall()
             records = []
@@ -294,13 +310,29 @@ class FinancialDatabase:
             self.conn.rollback()
             return False
 
-    def delete_all_records(self) -> bool:
-        """Delete all financial records"""
+    def delete_all_records(self, user_id: str = None) -> bool:
+        """Delete all financial records for a specific user"""
         try:
-            self.cursor.execute("DELETE FROM record_messages")
-            self.cursor.execute("DELETE FROM expense_breakdown")
-            self.cursor.execute("DELETE FROM ai_analysis")
-            self.cursor.execute("DELETE FROM financial_records")
+            if user_id:
+                # Get all record IDs for this user
+                self.cursor.execute("SELECT id FROM financial_records WHERE user_id = ?", (user_id,))
+                record_ids = [row[0] for row in self.cursor.fetchall()]
+
+                # Delete related data
+                for record_id in record_ids:
+                    self.cursor.execute("DELETE FROM record_messages WHERE record_id = ?", (record_id,))
+                    self.cursor.execute("DELETE FROM expense_breakdown WHERE record_id = ?", (record_id,))
+                    self.cursor.execute("DELETE FROM ai_analysis WHERE record_id = ?", (record_id,))
+
+                # Delete main records
+                self.cursor.execute("DELETE FROM financial_records WHERE user_id = ?", (user_id,))
+            else:
+                # Delete all records (for backwards compatibility)
+                self.cursor.execute("DELETE FROM record_messages")
+                self.cursor.execute("DELETE FROM expense_breakdown")
+                self.cursor.execute("DELETE FROM ai_analysis")
+                self.cursor.execute("DELETE FROM financial_records")
+
             self.conn.commit()
             return True
 
@@ -309,20 +341,34 @@ class FinancialDatabase:
             self.conn.rollback()
             return False
 
-    def get_statistics(self) -> Dict:
-        """Get statistical summary of all records"""
+    def get_statistics(self, user_id: str = None) -> Dict:
+        """Get statistical summary of records for a specific user"""
         try:
-            self.cursor.execute("""
-                SELECT
-                    COUNT(*) as total_records,
-                    AVG(income) as avg_income,
-                    AVG(fixed_expenses) as avg_expenses,
-                    AVG(remaining) as avg_remaining,
-                    AVG(savings_ratio) as avg_savings_ratio,
-                    MIN(timestamp) as first_record,
-                    MAX(timestamp) as last_record
-                FROM financial_records
-            """)
+            if user_id:
+                self.cursor.execute("""
+                    SELECT
+                        COUNT(*) as total_records,
+                        AVG(income) as avg_income,
+                        AVG(fixed_expenses) as avg_expenses,
+                        AVG(remaining) as avg_remaining,
+                        AVG(savings_ratio) as avg_savings_ratio,
+                        MIN(timestamp) as first_record,
+                        MAX(timestamp) as last_record
+                    FROM financial_records
+                    WHERE user_id = ?
+                """, (user_id,))
+            else:
+                self.cursor.execute("""
+                    SELECT
+                        COUNT(*) as total_records,
+                        AVG(income) as avg_income,
+                        AVG(fixed_expenses) as avg_expenses,
+                        AVG(remaining) as avg_remaining,
+                        AVG(savings_ratio) as avg_savings_ratio,
+                        MIN(timestamp) as first_record,
+                        MAX(timestamp) as last_record
+                    FROM financial_records
+                """)
 
             row = self.cursor.fetchone()
             return dict(row) if row else {}

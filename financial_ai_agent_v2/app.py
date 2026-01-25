@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 import os
 from zhipuai import ZhipuAI
 from database import get_database
+from user_manager import get_or_create_user_id, get_user_info, clear_user_session
+from auth_system import show_login_page, is_authenticated, logout_user
 
 # Page configuration
 st.set_page_config(
@@ -88,7 +90,27 @@ db = init_database()
 if 'current_month_data' not in st.session_state:
     st.session_state.current_month_data = None
 if 'use_database' not in st.session_state:
-    st.session_state.use_database = True
+    st.session_state.use_database = True  # Now using database with user isolation
+if 'user_records' not in st.session_state:
+    st.session_state.user_records = []  # Store user's records in session
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None  # Will be set later for persistent users
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+if 'guest_mode' not in st.session_state:
+    st.session_state.guest_mode = False
+
+# Check if user is authenticated or in guest mode
+if not is_authenticated():
+    show_login_page()
+    st.stop()
+
+# Get or create user ID for this session
+# If authenticated user, use their database ID; if guest, use UUID
+if st.session_state.get('authenticated'):
+    user_id = st.session_state.get('user_id')
+else:
+    user_id = get_or_create_user_id()
 
 # Initialize AI client
 @st.cache_resource
@@ -236,6 +258,22 @@ def get_ai_analysis(result):
 # Sidebar navigation
 with st.sidebar:
     st.image("https://img.icons8.com/clouds/200/money-bag.png", width=150)
+
+    # User info section
+    if st.session_state.get('authenticated'):
+        user_data = st.session_state.get('user_data', {})
+        st.markdown(f"### 👤 {user_data.get('username', 'User')}")
+        st.caption(f"📧 {user_data.get('email', '')}")
+        if st.button("🚪 Logout", use_container_width=True):
+            logout_user()
+    else:
+        st.markdown("### 👤 Guest Mode")
+        st.caption("Limited features - Login for full access")
+        if st.button("🔐 Login", use_container_width=True):
+            st.session_state.guest_mode = False
+            st.rerun()
+
+    st.divider()
     st.title("📊 Navigation")
 
     page = st.radio(
@@ -247,10 +285,11 @@ with st.sidebar:
     st.divider()
 
     st.markdown("### 📈 Quick Stats")
-    all_records = db.get_all_records()
+    # Get user's records from database
+    all_records = db.get_all_records(user_id)
     if all_records:
         total_entries = len(all_records)
-        stats = db.get_statistics()
+        stats = db.get_statistics(user_id)
         st.metric("Total Entries", total_entries)
         if stats.get('avg_savings_ratio'):
             st.metric("Avg Savings", f"{stats['avg_savings_ratio']:.1f}%")
@@ -317,12 +356,12 @@ if page == "Dashboard":
                 result = analyze_budget(income, expenses, goal)
                 st.session_state.current_month_data = result
 
-                # Save to database
-                record_id = db.insert_financial_record(result)
+                # Save to database with user_id (privacy-protected)
+                record_id = db.insert_financial_record(result, user_id)
                 if record_id > 0:
-                    st.success("✅ Data saved to database!")
+                    st.success("✅ Data saved securely to your account!")
                 else:
-                    st.warning("⚠️ Could not save to database")
+                    st.warning("⚠️ Could not save data")
 
     # Display results if available
     if st.session_state.current_month_data:
@@ -434,12 +473,12 @@ elif page == "Budget Analysis":
                     "Other": other
                 }
 
-                # Save to database
-                record_id = db.insert_financial_record(result)
+                # Save to database with user_id
+                record_id = db.insert_financial_record(result, user_id)
                 if record_id > 0:
-                    st.success("✅ Detailed analysis saved to database!")
+                    st.success("✅ Detailed analysis saved securely!")
                 else:
-                    st.warning("⚠️ Could not save to database")
+                    st.warning("⚠️ Could not save data")
 
     # Show results if available
     if st.session_state.current_month_data:
@@ -517,8 +556,8 @@ elif page == "Budget Analysis":
 elif page == "Historical Data":
     st.title("📅 Historical Financial Data")
 
-    # Get data from database
-    all_records = db.get_all_records()
+    # Get data from database (user-specific, privacy-protected)
+    all_records = db.get_all_records(user_id)
 
     if all_records:
         st.markdown(f"### You have {len(all_records)} recorded entries")
@@ -563,7 +602,7 @@ elif page == "Historical Data":
 
         # Statistics
         st.markdown("### 📊 Statistics")
-        stats = db.get_statistics()
+        stats = db.get_statistics(user_id)
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -578,9 +617,9 @@ elif page == "Historical Data":
         col1, col2 = st.columns([3, 1])
         with col2:
             if st.button("🗑️ Clear All Data", type="secondary", use_container_width=True):
-                if db.delete_all_records():
+                if db.delete_all_records(user_id):
                     st.session_state.current_month_data = None
-                    st.success("All data cleared!")
+                    st.success("All your data cleared!")
                     st.rerun()
                 else:
                     st.error("Failed to clear data")
@@ -591,7 +630,7 @@ elif page == "Reports":
     st.title("📄 Financial Reports")
     st.markdown("### Generate comprehensive financial reports")
 
-    all_records = db.get_all_records()
+    all_records = db.get_all_records(user_id)
 
     if all_records:
         st.success(f"✅ {len(all_records)} entries available for reporting")
@@ -662,6 +701,23 @@ elif page == "Settings":
     st.title("⚙️ Settings")
     st.markdown("### Configure your preferences")
 
+    # Account Information
+    st.markdown("#### 👤 Account Information")
+    if st.session_state.get('authenticated'):
+        user_data = st.session_state.get('user_data', {})
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info(f"**Username:** {user_data.get('username', 'N/A')}")
+            st.info(f"**Email:** {user_data.get('email', 'N/A')}")
+        with col2:
+            st.info(f"**Full Name:** {user_data.get('full_name', 'Not set')}")
+            st.info(f"**Member Since:** {user_data.get('created_at', 'N/A')[:10]}")
+    else:
+        st.warning("🔓 Guest Mode - Your data is temporary")
+        st.info("Create an account to save your data permanently")
+
+    st.divider()
+
     st.markdown("#### API Configuration")
     try:
         api_key = st.secrets.get("ZHIPU_API_KEY") or os.getenv("ZHIPU_API_KEY")
@@ -670,23 +726,28 @@ elif page == "Settings":
     api_key_status = "✅ Configured" if api_key else "❌ Not configured"
     st.info(f"ZHIPU_API_KEY: {api_key_status}")
 
+    st.markdown("#### User Information")
+    user_info = get_user_info()
+    st.info(f"User ID: {user_info['user_id'][:8]}... (Anonymous)")
+    st.info(f"Session created: {user_info.get('created_at', 'N/A')}")
+
     st.markdown("#### Database Information")
-    stats = db.get_statistics()
+    stats = db.get_statistics(user_id)
     if stats.get('total_records', 0) > 0:
-        st.success(f"✅ Database connected: {stats['total_records']} records")
+        st.success(f"✅ Your data: {stats['total_records']} records")
         st.info(f"First record: {stats.get('first_record', 'N/A')}")
         st.info(f"Last record: {stats.get('last_record', 'N/A')}")
     else:
-        st.info("Database is empty")
+        st.info("No data saved yet")
 
     st.markdown("#### Data Management")
     col1, col2 = st.columns(2)
 
     with col1:
         if st.button("🗑️ Clear All Data", type="secondary", use_container_width=True):
-            if db.delete_all_records():
+            if db.delete_all_records(user_id):
                 st.session_state.current_month_data = None
-                st.success("All data has been cleared!")
+                st.success("All your data has been cleared!")
                 st.rerun()
             else:
                 st.error("Failed to clear data")
