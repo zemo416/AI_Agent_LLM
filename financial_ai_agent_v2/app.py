@@ -11,7 +11,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import os
 from zhipuai import ZhipuAI
-from database import get_database
+from database_adapter import get_database  # Auto-selects SQLite or PostgreSQL
 from user_manager import get_or_create_user_id, get_user_info, clear_user_session
 from auth_system import show_login_page, is_authenticated, logout_user
 
@@ -102,7 +102,7 @@ if 'guest_mode' not in st.session_state:
 
 # Check if user is authenticated or in guest mode
 if not is_authenticated():
-    show_login_page()
+    show_login_page(db)  # Pass database instance
     st.stop()
 
 # Get or create user ID for this session

@@ -3,13 +3,15 @@
 <div align="center">
 
 ![Version](https://img.shields.io/badge/version-2.0-blue.svg)
-![Python](https://img.shields.io/badge/python-3.8+-green.svg)
+![Python](https://img.shields.io/badge/python-3.11-green.svg)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.30+-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-yellow.svg)
 
-**An AI-powered financial analysis platform for personal and business budget management**
+**An AI-powered financial analysis platform with complete user authentication and cloud database support**
 
-[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Screenshots](#screenshots) • [Tech Stack](#tech-stack)
+**🚀 [Live Demo](https://aiagentllm-9acfpcyffmueazsisfahni.streamlit.app/)**
+
+[Features](#features) • [Installation](#installation) • [Cloud Setup](#cloud-setup) • [Tech Stack](#tech-stack)
 
 </div>
 
@@ -23,15 +25,23 @@ The **Enterprise Financial AI Assistant** is a comprehensive financial managemen
 
 ### Core Capabilities
 
+- **🔐 User Authentication**
+  - Secure registration and login system
+  - Password encryption with bcrypt
+  - Guest mode for quick demos
+  - Multi-user data isolation
+
 - **🤖 AI-Powered Analysis**
   - Intelligent budget evaluation using ZhipuAI (GLM-4)
   - Personalized financial recommendations
   - Risk assessment and prediction
+  - Multi-model fallback for reliability
 
 - **📊 Interactive Dashboard**
   - Real-time financial metrics
-  - Modern, responsive UI
+  - Modern, responsive UI with dark theme
   - Multi-page navigation (Dashboard, Analysis, History, Reports)
+  - User-specific data display
 
 - **📈 Data Visualization**
   - Interactive charts and graphs (Plotly)
@@ -39,13 +49,15 @@ The **Enterprise Financial AI Assistant** is a comprehensive financial managemen
   - Income vs. Expenses trend analysis
   - Financial health gauges
 
-- **💾 Data Management**
+- **💾 Cloud Database**
+  - PostgreSQL support via Supabase
+  - Automatic database selection (SQLite local / PostgreSQL cloud)
+  - Data persistence across sessions
   - Historical data tracking
-  - Session-based data storage
   - CSV/Excel export capabilities
-  - Data persistence support
 
 - **🎨 Professional UI/UX**
+  - Dark theme with high contrast
   - Gradient card designs
   - Color-coded risk indicators
   - Responsive layout
@@ -119,6 +131,30 @@ The **Enterprise Financial AI Assistant** is a comprehensive financial managemen
 6. **Access the app**
    - Open your browser and navigate to `http://localhost:8501`
 
+## ☁️ Cloud Setup
+
+### Deploy with Cloud Database (Recommended)
+
+For production deployment with data persistence:
+
+1. **Set up Supabase** (Free PostgreSQL)
+   - Follow [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed instructions
+   - Get your DATABASE_URL
+
+2. **Deploy to Streamlit Cloud**
+   - Connect your GitHub repository
+   - Add Secrets in Streamlit Cloud:
+     ```toml
+     DATABASE_URL = "postgresql://..."
+     ZHIPU_API_KEY = "your-key"
+     ```
+   - See [QUICK_DEPLOY.md](./QUICK_DEPLOY.md) for complete checklist
+
+3. **Automatic Database Selection**
+   - **Local**: Automatically uses SQLite (no setup needed)
+   - **Cloud**: Automatically uses PostgreSQL when DATABASE_URL is set
+   - No code changes required!
+
 ## 📖 Usage
 
 ### Quick Start
@@ -173,29 +209,66 @@ The **Enterprise Financial AI Assistant** is a comprehensive financial managemen
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **Streamlit** - Web application framework
+- **Streamlit 1.30+** - Web application framework
 - **Plotly** - Interactive data visualization
-- **Custom CSS** - Modern UI styling
+- **Custom CSS** - Dark theme UI styling
 
 ### Backend
-- **Python 3.8+** - Core programming language
+- **Python 3.11** - Core programming language
 - **Pandas** - Data manipulation and analysis
-- **ZhipuAI** - AI-powered financial analysis
+- **ZhipuAI (GLM-4)** - AI-powered financial analysis
+- **bcrypt** - Password encryption
 
-### Data & Storage
-- **Session State** - In-memory data storage
-- **CSV Export** - Data portability
-- **Future: SQLite** - Persistent database storage
+### Database & Storage
+- **PostgreSQL** - Production cloud database (Supabase)
+- **SQLite** - Local development database
+- **psycopg2** - PostgreSQL adapter
+- **Automatic selection** - Smart database routing
+
+### Authentication & Security
+- **Custom Auth System** - User registration/login
+- **bcrypt** - Password hashing
+- **Session Management** - Secure session handling
+- **UUID** - Anonymous user tracking
 
 ## 🏗️ Architecture
 
 ```
 financial_ai_agent_v2/
-├── app.py                 # Main Streamlit application
-├── requirements.txt       # Python dependencies
-├── README.md             # Project documentation
-├── .venv/                # Virtual environment
-└── my_package/           # Additional modules (optional)
+├── app.py                      # Main Streamlit application
+├── database.py                 # SQLite database module
+├── database_postgres.py        # PostgreSQL database module
+├── database_adapter.py         # Auto database selection
+├── auth_system.py              # User authentication
+├── user_manager.py             # Session management
+├── requirements.txt            # Python dependencies
+├── runtime.txt                 # Python 3.11.9
+├── README.md                  # This file
+├── SUPABASE_SETUP.md          # Cloud database setup guide
+├── QUICK_DEPLOY.md            # Deployment checklist
+└── DEPLOYMENT_GUIDE.md        # Complete deployment guide
+```
+
+### 3-Tier Security Architecture
+
+```
+┌──────────────────────────────────────┐
+│  Tier 1: Session Isolation           │
+│  - Browser-based data storage        │
+└──────────────────────────────────────┘
+           ↓
+┌──────────────────────────────────────┐
+│  Tier 2: UUID Identification         │
+│  - Unique ID per browser             │
+│  - Database persistence              │
+└──────────────────────────────────────┘
+           ↓
+┌──────────────────────────────────────┐
+│  Tier 3: Full Authentication         │
+│  - User registration/login           │
+│  - Password encryption               │
+│  - Multi-device support              │
+└──────────────────────────────────────┘
 ```
 
 ## 🔑 Key Functions
@@ -253,12 +326,29 @@ get_ai_analysis(result)
 
 ## 🚀 Future Enhancements
 
+### Completed in v2.0 ✅
+
+- [x] **User Authentication System**
+  - Registration and login
+  - Password encryption
+  - Multi-user support
+
+- [x] **Cloud Database Integration**
+  - PostgreSQL support
+  - Supabase integration
+  - Data persistence
+
+- [x] **Enhanced Security**
+  - 3-tier data isolation
+  - Session management
+  - User data privacy
+
 ### Planned Features (v3.0)
 
-- [ ] **SQLite Database Integration**
-  - Persistent data storage
-  - Multi-user support
-  - Advanced querying
+- [ ] **实证AI (Empirical AI)**
+  - User feedback collection
+  - Personalized recommendations based on history
+  - Effect verification and optimization
 
 - [ ] **Advanced Analytics**
   - 6-month financial forecasting
