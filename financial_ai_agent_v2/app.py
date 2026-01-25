@@ -180,23 +180,58 @@ def get_ai_analysis(result):
         f"Savings Ratio: {result['ratio']}%"
     ])
 
-    try:
-        response = client.chat.completions.create(
-            model="glm-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a professional financial advisor. "
-                               "Provide actionable, specific advice based on the financial data. "
-                               "Focus on concrete steps the user can take. "
-                               "Be concise and use bullet points."
-                },
-                {"role": "user", "content": fact_text}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Error getting AI analysis: {str(e)}"
+    # Try multiple models in order of preference
+    models_to_try = ["glm-4", "glm-4-plus", "glm-3-turbo", "chatglm_turbo"]
+
+    for model_name in models_to_try:
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a professional financial advisor with expertise in personal finance management. "
+                                   "Provide comprehensive, actionable advice based on the financial data provided. "
+                                   "Your response should include:\n"
+                                   "1. Overall financial health assessment (2-3 sentences)\n"
+                                   "2. Specific recommendations (5-7 actionable bullet points)\n"
+                                   "3. Potential risks to watch out for\n"
+                                   "4. Long-term financial planning tips\n"
+                                   "Be thorough but clear. Use bullet points and emojis for better readability."
+                    },
+                    {"role": "user", "content": fact_text}
+                ],
+                max_tokens=1500,
+                temperature=0.7
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            # If this model fails, try the next one
+            if model_name == models_to_try[-1]:
+                # If all models failed, return a helpful message
+                return f"""
+                **AI Analysis Unavailable**
+
+                Unable to access AI models with your current API key.
+
+                **Manual Financial Advice:**
+
+                Based on your data:
+                - Income: ${result['income']:,.2f}
+                - Expenses: ${result['fixed']:,.2f}
+                - Savings: ${result['remaining']:,.2f}
+                - Risk Level: {result['risk']}
+
+                **General Recommendations:**
+                - ✅ Aim to save 20-30% of your income
+                - ✅ Build an emergency fund (3-6 months of expenses)
+                - ✅ Track your spending regularly
+                - ✅ Review and adjust your budget monthly
+                - ✅ Consider automating your savings
+
+                💡 **Tip:** Check your API key permissions at https://open.bigmodel.cn/
+                """
+            continue
 
 # Sidebar navigation
 with st.sidebar:
