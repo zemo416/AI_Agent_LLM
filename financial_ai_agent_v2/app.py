@@ -182,7 +182,7 @@ def get_ai_analysis(result):
 
     try:
         response = client.chat.completions.create(
-            model="glm-4-air",
+            model="glm-4",
             messages=[
                 {
                     "role": "system",
