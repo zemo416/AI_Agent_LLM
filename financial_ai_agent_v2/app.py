@@ -93,7 +93,12 @@ if 'use_database' not in st.session_state:
 # Initialize AI client
 @st.cache_resource
 def get_ai_client():
-    api_key = os.getenv("ZHIPU_API_KEY")
+    # Try to get API key from Streamlit secrets first, then fall back to environment variable
+    try:
+        api_key = st.secrets.get("ZHIPU_API_KEY")
+    except:
+        api_key = os.getenv("ZHIPU_API_KEY")
+
     if not api_key:
         st.warning("⚠️ ZHIPU_API_KEY not found. AI features will be limited.")
         return None
@@ -177,7 +182,7 @@ def get_ai_analysis(result):
 
     try:
         response = client.chat.completions.create(
-            model="glm-4-flash",
+            model="glm-4-air",
             messages=[
                 {
                     "role": "system",
@@ -623,7 +628,11 @@ elif page == "Settings":
     st.markdown("### Configure your preferences")
 
     st.markdown("#### API Configuration")
-    api_key_status = "✅ Configured" if os.getenv("ZHIPU_API_KEY") else "❌ Not configured"
+    try:
+        api_key = st.secrets.get("ZHIPU_API_KEY") or os.getenv("ZHIPU_API_KEY")
+    except:
+        api_key = os.getenv("ZHIPU_API_KEY")
+    api_key_status = "✅ Configured" if api_key else "❌ Not configured"
     st.info(f"ZHIPU_API_KEY: {api_key_status}")
 
     st.markdown("#### Database Information")
