@@ -6,7 +6,10 @@
       "Bash(pip install:*)",
       "Bash(streamlit run:*)",
       "Bash(taskkill:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
