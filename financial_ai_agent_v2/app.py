@@ -338,7 +338,7 @@ with st.sidebar:
 
     page = st.radio(
         "Select Page",
-        ["Dashboard", "Budget Analysis", "Historical Data", "Reports", "Settings"],
+        ["Dashboard", "Budget Analysis", "Stock Sentiment", "Historical Data", "Reports", "Settings"],
         label_visibility="collapsed"
     )
 
@@ -630,6 +630,11 @@ elif page == "Budget Analysis":
                             db.insert_ai_analysis(record_id, ai_advice)
             else:
                 st.warning("AI features are not available. Please configure ZHIPU_API_KEY.")
+
+elif page == "Stock Sentiment":
+    # Import and render the stock sentiment analysis page
+    from stock_sentiment_page import render_stock_sentiment_page
+    render_stock_sentiment_page()
 
 elif page == "Historical Data":
     st.title("📅 Historical Financial Data")
